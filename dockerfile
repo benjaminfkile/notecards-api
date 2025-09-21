@@ -1,25 +1,29 @@
-# Stage 1: Build
+# ---- Build stage ----
 FROM node:20 AS builder
 
 WORKDIR /app
 
+# Install dependencies
 COPY package*.json tsconfig.json ./
 RUN npm ci
 
-COPY src ./src
-RUN npx tsc
+# Copy ALL source (root index.ts + src/)
+COPY . .
 
-# Stage 2: Runtime
+# Compile TS → dist/
+RUN npm run build
+
+# ---- Runtime stage ----
 FROM node:20-slim AS runtime
 
 WORKDIR /app
 
-# Copy only built files + package.json
-COPY --from=builder /app/dist ./dist
+# Install only prod deps
 COPY package*.json ./
-
-# Install only production dependencies
 RUN npm ci --omit=dev
+
+# Copy compiled JS
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 8000
 

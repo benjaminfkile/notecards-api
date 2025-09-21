@@ -1,31 +1,16 @@
-name: CI/CD to ECR + ASG Refresh
+name: Build and Deploy to AWS
 
 on:
   push:
-    branches: [ main ]
-
-concurrency:
-  group: deploy-main
-  cancel-in-progress: true
+    branches: ["main"]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    env:
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}       
-      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}    
-      ASG_NAME: ${{ secrets.ASG_NAME }}
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -34,48 +19,46 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Log in to Amazon ECR
         run: |
-          aws ecr get-login-password --region "$AWS_REGION" \
-            | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+            | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
 
-      - name: Build & push image (multi-stage, amd64)
+      - name: Build & Push Docker image
         run: |
-          GIT_SHA="${GITHUB_SHA::7}"
-          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY"
+          IMAGE_URI=${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}
+          GIT_SHA=$(git rev-parse --short HEAD)
+
           docker buildx build \
             --platform linux/amd64 \
-            --file dockerfile \
-            --build-arg NODE_ENV=production \
-            -t "$IMAGE_URI:$GIT_SHA" \
-            -t "$IMAGE_URI:latest" \
+            -t $IMAGE_URI:$GIT_SHA \
+            -t $IMAGE_URI:latest \
             --push .
 
-      - name: Refresh Auto Scaling Group
+      - name: Cancel any existing instance refresh
         run: |
-          echo "Cancelling any existing instance refresh..."
-          REFRESH_ID=$(aws autoscaling cancel-instance-refresh \
-            --auto-scaling-group-name "$ASG_NAME" \
-            --query 'InstanceRefreshId' --output text || true)
+          aws autoscaling cancel-instance-refresh \
+            --auto-scaling-group-name "${{ secrets.ASG_NAME }}" || true
 
-          if [ "$REFRESH_ID" != "None" ]; then
-            echo "Waiting for refresh $REFRESH_ID to cancel..."
-            while true; do
-              STATUS=$(aws autoscaling describe-instance-refreshes \
-                --auto-scaling-group-name "$ASG_NAME" \
-                --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].Status" \
-                --output text)
-              if [ "$STATUS" == "Cancelled" ] || [ -z "$STATUS" ]; then
-                echo "Refresh cancelled."
-                break
-              fi
-              echo "Still $STATUS... sleeping 10s"
-              sleep 10
-            done
-          fi
+      - name: Wait for refresh to cancel
+        run: |
+          while true; do
+            STATUS=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "${{ secrets.ASG_NAME }}" \
+              --query 'InstanceRefreshes[0].Status' --output text)
 
-          echo "Starting new instance refresh..."
+            if [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "None" ]; then
+              echo "Old refresh cancelled."
+              break
+            fi
+
+            echo "Waiting for cancel... current status: $STATUS"
+            sleep 10
+          done
+
+      - name: Start new instance refresh
+        run: |
           aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name "$ASG_NAME" \
+            --auto-scaling-group-name "${{ secrets.ASG_NAME }}" \
             --strategy Rolling \
-            --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 60}'
+            --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 120}'
