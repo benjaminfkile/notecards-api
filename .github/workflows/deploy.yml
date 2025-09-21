@@ -39,11 +39,14 @@ jobs:
           aws ecr get-login-password --region "$AWS_REGION" \
             | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
-      - name: Build & push image (amd64)
+      - name: Build & push image (multi-stage, amd64)
         run: |
           GIT_SHA="${GITHUB_SHA::7}"
           IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY"
-          docker buildx build --platform linux/amd64 \
+          docker buildx build \
+            --platform linux/amd64 \
+            --file dockerfile \      # explicitly point to your Dockerfile
+            --build-arg NODE_ENV=production \
             -t "$IMAGE_URI:$GIT_SHA" \
             -t "$IMAGE_URI:latest" \
             --push .
