@@ -19,6 +19,8 @@ app.get("/", (req: Request, res: Response) => {
   res.send("Hello notecards!")//bump
 })
 
+app.get("/health", (req, res) => res.status(200).send("ok"))
+
 // Catch uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
   console.error('Uncaught Exception:', error);
