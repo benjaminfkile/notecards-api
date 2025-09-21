@@ -16,7 +16,7 @@ app.use(helmet())
 
 // Routes
 app.get("/", (req: Request, res: Response) => {
-  res.send("Hello, ts!")
+  res.send("Hello notecards!")
 })
 
 // Catch uncaught exceptions
