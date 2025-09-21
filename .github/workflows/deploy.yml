@@ -16,7 +16,7 @@ jobs:
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}        
+      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}  
       ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}    
       ASG_NAME: ${{ secrets.ASG_NAME }}
       IMAGE_URI: ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}
@@ -48,8 +48,14 @@ jobs:
             -t "$ECR_REGISTRY/$ECR_REPOSITORY:latest" \
             --push .
 
-      - name: Start ASG instance refresh (rolling)
+      - name: Refresh Auto Scaling Group
         run: |
+          echo "Cancelling any existing instance refresh..."
+          aws autoscaling cancel-instance-refresh \
+            --auto-scaling-group-name "$ASG_NAME" || true
+
+          echo "Starting new instance refresh..."
           aws autoscaling start-instance-refresh \
             --auto-scaling-group-name "$ASG_NAME" \
-            --strategy Rolling
+            --strategy Rolling \
+            --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 60}'
