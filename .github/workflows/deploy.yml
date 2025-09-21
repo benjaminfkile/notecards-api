@@ -16,10 +16,9 @@ jobs:
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}  
-      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}    
+      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}        # e.g. 719766734490.dkr.ecr.us-east-1.amazonaws.com
+      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}    # e.g. notecards-api
       ASG_NAME: ${{ secrets.ASG_NAME }}
-      IMAGE_URI: ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}
 
     steps:
       - name: Checkout
@@ -43,16 +42,34 @@ jobs:
       - name: Build & push image (amd64)
         run: |
           GIT_SHA="${GITHUB_SHA::7}"
+          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY"
           docker buildx build --platform linux/amd64 \
-            -t "$ECR_REGISTRY/$ECR_REPOSITORY:$GIT_SHA" \
-            -t "$ECR_REGISTRY/$ECR_REPOSITORY:latest" \
+            -t "$IMAGE_URI:$GIT_SHA" \
+            -t "$IMAGE_URI:latest" \
             --push .
 
       - name: Refresh Auto Scaling Group
         run: |
           echo "Cancelling any existing instance refresh..."
-          aws autoscaling cancel-instance-refresh \
-            --auto-scaling-group-name "$ASG_NAME" || true
+          REFRESH_ID=$(aws autoscaling cancel-instance-refresh \
+            --auto-scaling-group-name "$ASG_NAME" \
+            --query 'InstanceRefreshId' --output text || true)
+
+          if [ "$REFRESH_ID" != "None" ]; then
+            echo "Waiting for refresh $REFRESH_ID to cancel..."
+            while true; do
+              STATUS=$(aws autoscaling describe-instance-refreshes \
+                --auto-scaling-group-name "$ASG_NAME" \
+                --query "InstanceRefreshes[?InstanceRefreshId=='$REFRESH_ID'].Status" \
+                --output text)
+              if [ "$STATUS" == "Cancelled" ] || [ -z "$STATUS" ]; then
+                echo "Refresh cancelled."
+                break
+              fi
+              echo "Still $STATUS... sleeping 10s"
+              sleep 10
+            done
+          fi
 
           echo "Starting new instance refresh..."
           aws autoscaling start-instance-refresh \
