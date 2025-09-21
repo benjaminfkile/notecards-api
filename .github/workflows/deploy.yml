@@ -16,8 +16,8 @@ jobs:
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}        
+      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}    
       ASG_NAME: ${{ secrets.ASG_NAME }}
       IMAGE_URI: ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}
 
@@ -44,7 +44,8 @@ jobs:
         run: |
           GIT_SHA="${GITHUB_SHA::7}"
           docker buildx build --platform linux/amd64 \
-            -t "$IMAGE_URI:$GIT_SHA" -t "$IMAGE_URI:latest" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:$GIT_SHA" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:latest" \
             --push .
 
       - name: Start ASG instance refresh (rolling)
