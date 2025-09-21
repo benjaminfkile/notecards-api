@@ -16,8 +16,8 @@ jobs:
 
     env:
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}        # e.g. 719766734490.dkr.ecr.us-east-1.amazonaws.com
-      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}    # e.g. notecards-api
+      ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}       
+      ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}    
       ASG_NAME: ${{ secrets.ASG_NAME }}
 
     steps:
@@ -45,7 +45,7 @@ jobs:
           IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY"
           docker buildx build \
             --platform linux/amd64 \
-            --file dockerfile \      # explicitly point to your Dockerfile
+            --file dockerfile \
             --build-arg NODE_ENV=production \
             -t "$IMAGE_URI:$GIT_SHA" \
             -t "$IMAGE_URI:latest" \
