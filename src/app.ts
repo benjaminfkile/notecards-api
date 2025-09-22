@@ -2,6 +2,7 @@ import express, { Express, NextFunction, Request, Response } from "express"
 import morgan from "morgan"
 import cors from "cors"
 import helmet from "helmet"
+import os from "os"
 
 const NODE_ENV = process.env.NODE_ENV
 const app: Express = express()
@@ -20,6 +21,10 @@ app.get("/", (req: Request, res: Response) => {
 })
 
 app.get("/health", (req, res) => res.status(200).send("ok"))
+
+app.get("/hostname", (req: Request, res: Response) => {
+  res.send(os.hostname())
+})
 
 // Catch uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
