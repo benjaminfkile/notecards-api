@@ -25,6 +25,6 @@ RUN npm ci --omit=dev
 # Copy compiled JS
 COPY --from=builder /app/dist ./dist
 
-EXPOSE 8000
+EXPOSE 3001
 
 CMD ["node", "dist/index.js"]
