@@ -1,11 +1,11 @@
-name: Build and Deploy to AWS
+name: Build and Push to ECR
 
 on:
   push:
     branches: ["main"]
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
@@ -34,30 +34,3 @@ jobs:
             -t $IMAGE_URI:$GIT_SHA \
             -t $IMAGE_URI:latest \
             --push .
-
-      - name: Cancel any existing instance refresh
-        run: |
-          aws autoscaling cancel-instance-refresh \
-            --auto-scaling-group-name "${{ secrets.ASG_NAME }}" || true
-
-      - name: Wait for refresh to cancel
-        run: |
-          while true; do
-          STATUS=$(aws autoscaling describe-instance-refreshes \
-          --auto-scaling-group-name "${{ secrets.ASG_NAME }}" \
-          --query 'InstanceRefreshes[0].Status' --output text)
-
-          if [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "None" ] || [ "$STATUS" = "Successful" ]; then
-          echo "No refresh in progress (status: $STATUS)."
-          break
-          fi
-
-          echo "Waiting for cancel... current status: $STATUS"
-          sleep 10
-          done
-      - name: Start new instance refresh
-        run: |
-          aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name "${{ secrets.ASG_NAME }}" \
-            --strategy Rolling \
-            --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 120}'
