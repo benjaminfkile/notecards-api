@@ -2,7 +2,7 @@ import express, { Express, NextFunction, Request, Response } from "express"
 import morgan from "morgan"
 import cors from "cors"
 import helmet from "helmet"
-import os from "os"
+import notecardsRouter from "./routes/notecardsRoute"
 
 const NODE_ENV = process.env.NODE_ENV
 const app: Express = express()
@@ -19,6 +19,8 @@ app.use(helmet())
 app.get("/", (req: Request, res: Response) => {
   res.send("Hello notecards!")//bump
 })
+
+app.use("/notecards", notecardsRouter)
 
 // Catch uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
